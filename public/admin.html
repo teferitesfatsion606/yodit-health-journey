@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="am">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ዮዲት — አስተዳዳሪ</title>
+<style>
+root{--bg:#0B1220;--card:#121B2E;--line:#223251;--ink:#EAF1FF;--gray:#8FA3C4;--green:#3DDC97;--red:#EF4444;--gold:#F59E0B;--blue:#2E9BFF}
+{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+.topbar{background:rgba(18,27,46,.95);border-bottom:1px solid var(--line);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.tb-title{font-size:18px;font-weight:800}
+.tb-stats{display:flex;gap:16px;font-size:13px;color:var(--gray)}
+.main{padding:20px;max-width:1500px;margin:0 auto}
+.tabs{display:flex;gap:6px;margin-bottom:20px;flex-wrap:wrap}
+.tab{padding:8px 18px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--gray);font-size:12px;font-weight:700;cursor:pointer}
+.tab.on{background:var(--blue);color:#fff;border-color:transparent}
+.panel{display:none}
+.panel.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
+.card-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.card-title{font-weight:700;font-size:15px}
+table{width:100%;border-collapse:collapse;font-size:11px}
+th,td{padding:6px 8px;text-align:right;border-bottom:1px solid var(--line)}
+th{color:var(--gray);font-weight:600;font-size:10px;white-space:nowrap}
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:10px;font-weight:700}
+.badge.green{background:rgba(61,220,151,.15);color:var(--green)}
+.badge.yellow{background:rgba(245,158,11,.15);color:var(--gold)}
+.badge.red{background:rgba(239,68,68,.15);color:var(--red)}
+.btn{padding:5px 10px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:11px;font-weight:600;cursor:pointer}
+.btn:hover{opacity:.85}
+.btn.green{background:var(--green);color:#000;border-color:transparent}
+.btn.red{background:var(--red);color:#fff;border-color:transparent}
+.btn.gold{background:var(--gold);color:#000;border-color:transparent}
+.btn.blue{background:var(--blue);color:#fff;border-color:transparent}
+.login-box{max-width:380px;margin:80px auto;padding:28px}
+.login-box input{width:100%;padding:11px;border-radius:9px;border:1.5px solid var(--line);background:var(--bg);color:var(--ink);font-size:14px;margin-bottom:10px}
+.login-box input:focus{outline:none;border-color:var(--blue)}
+.field-row{display:flex;gap:8px;margin-bottom:8px;align-items:center;flex-wrap:wrap}
+.field-row input,.field-row select,.field-row textarea{padding:9px 12px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font-size:12px}
+.field-row textarea{flex:1;min-width:200px;resize:vertical}
+.modal-overlay{position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.75);display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-box{background:var(--card);border:2px solid var(--green);border-radius:20px;padding:28px 24px;max-width:420px;width:100%;text-align:center}
+.modal-code{font-size:56px;font-weight:900;letter-spacing:14px;color:var(--green);margin:12px 0;font-family:monospace;background:rgba(61,220,151,.1);border-radius:14px;padding:10px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--line);padding:12px 20px;border-radius:12px;font-size:12px;z-index:1000;opacity:0;pointer-events:none;transition:opacity .3s}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<script src="/socket.io/socket.io.js"></script>
+
+<div class="topbar" id="topBar" style="display:none">
+  <div class="tb-title">🌬️ ዮዲት አስተዳዳሪ</div>
+  <div class="tb-stats">
+    <span id="onlineCount">ኦንላይን: 0</span>
+    <span id="totalUsers">ዩዘሮች: 0</span>
+    <button class="btn" onclick="logout()">ውጣ</button>
+  </div>
+</div>
+
+<div id="loginScreen" class="login-box card">
+  <h1>🌬️ ዮዲት</h1>
+  <input type="email" id="loginEmail" placeholder="admin@yodit.app" autofocus/>
+  <input type="password" id="loginPass" placeholder="የይለፍ ቃል" onkeydown="if(event.key==='Enter')adminLogin()"/>
+  <p id="loginErr"></p>
+  <button onclick="adminLogin()" style="width:100%;padding:11px;border-radius:9px;border:none;background:var(--blue);color:#fff;font-size:14px;font-weight:700;cursor:pointer">ግባ</button>
+  <p>admin@yodit.app / Admin@Yodit2024!</p>
+</div>
+
+<div id="dashboard" style="display:none">
+<div class="main">
+  <div class="tabs">
+    <button class="tab on" onclick="switchTab('users')">👥 ዩዘሮች</button>
+    <button class="tab" onclick="switchTab('messages')">💬 መልክት ላክ</button>
+  </div>
+
+  <div id="panel_users" class="panel on">
+    <div class="card">
+      <div class="card-hdr"><span class="card-title">👥 ዩዘሮች</span><button class="btn" onclick="loadUsers()">🔄 አድስ</button></div>
+      <table><thead><tr><th>ስም</th><th>ኢሜይሌ</th><th>ሁኔታ</th><th>Streak</th><th>Best</th><th>ዳሸ</th></tr></thead><tbody id="usersTable"></tbody></table>
+    </div>
+  </div>
+
+  <div id="panel_messages" class="panel">
+    <div class="card">
+      <div class="card-title">📩 ለአንድ ዩዘር መልክት ላክ</div>
+      <div class="field-row">
+        <select id="msgTarget" style="flex:1;min-width:200px"><option value="">— ���ዘር ምረጥ —</option></select>
+      </div>
+      <div class="field-row">
+        <input id="msgTitle" placeholder="ርዕስ" style="flex:1"/>
+      </div>
+      <div class="field-row">
+        <textarea id="msgBody" placeholder="መልክት ጻፍ..."></textarea>
+      </div>
+      <button class="btn blue" onclick="sendToUser()">📩 ላክ</button>
+      <span id="msgStatus"></span>
+    </div>
+    <div class="card">
+      <div class="card-title">📢 ለሁሉም 匽ፍ</div>
+      <textarea id="bcBody" placeholder="መ፛ግ..." style="width:100%;min-height:80px;margin-bottom:8px;padding:8px;border-radius:8px;background:var(--bg);color:var(--ink);border:1px solid var(--line)"></textarea><br/>
+      <button class="btn blue" onclick="sendToAll()">📢 ለሁሉም ላክ</button>
+      <span id="bcStatus"></span>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var token = localStorage.getItem('yodit_admin_token');
+var socket = null;
+var API = window.location.origin + '/api';
+
+function toast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(function() { t.classList.remove('show'); }, 3000);
+}
+
+function initSocket() {
+  if (typeof io === 'undefined') return;
+  socket = io({ transports: ['websocket', 'polling'], autoConnect: false });
+  socket.on('connect', function() { if (token) socket.emit('join_admin', token); });
+  socket.on('online_count', function(n) { document.getElementById('onlineCount').textContent = 'ኦንላይን: ' + n; });
+  socket.on('new_registration', function(d) { toast('🆕 ' + d.name); loadUsers(); });
+}
+
+async function api(url, opts) {
+  opts = opts || {};
+  var headers = { 'Authorization': 'Bearer ' + token };
+  if (opts.body) headers['Content-Type'] = 'application/json';
+  var r = await fetch(API + url, { method: opts.method || 'GET', headers: headers, body: opts.body || undefined });
+  var text = await r.text();
+  var d; try { d = JSON.parse(text); } catch(e) { throw new Error('Server error'); }
+  if (!r.ok) throw new Error(d.error || 'Failed');
+  return d;
+}
+
+async function adminLogin() {
+  var email = document.getElementById('loginEmail').value.trim();
+  var pass = document.getElementById('loginPass').value;
+  var err = document.getElementById('loginErr');
+  if (!email || !pass) { err.textContent = 'ኢ,ᘺ'; return; }
+  try {
+    var r = await fetch(API + '/auth/admin-login', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ email, password: pass }) });
+    var d = await r.json();
+    if (!r.ok) { err.textContent = d.error || 'Error'; return; }
+    token = d.token;
+    localStorage.setItem('yodit_admin_token', token);
+    document.getElementById('loginScreen').style.display = 'none';
+    document.getElementById('dashboard').style.display = 'block';
+    document.getElementById('topBar').style.display = 'flex';
+    if (socket) { socket.connect(); socket.emit('join_admin', token); }
+    loadAll();
+  } catch(e) { err.textContent = 'Server error! npm start?'; }
+}
+
+function logout() { localStorage.removeItem('yodit_admin_token'); location.reload(); }
+
+if (token) {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('dashboard').style.display = 'block';
+  document.getElementById('topBar').style.display = 'flex';
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(function(t, i) { t.classList.toggle('on', i === ((tab==='users')?0:1)); });
+  document.getElementById('panel_users').style.display = tab==='users'?'block':'none';
+  document.getElementById('panel_messages').style.display = tab==='messages'?'block':'none';
+  if (tab==='users') loadUsers();
+}
+
+async function loadAll() { loadUsers(); }
+
+async function loadUsers() {
+  try {
+    var users = await api('/admin/users');
+    document.getElementById('totalUsers').textContent = '犝∜: ' + users.length;
+    document.getElementById('usersTable').innerHTML = users.map(function(u) {
+      return '<tr>'+'<td><b>'+(u.name||')—')+'</b></td>'+'<td>'+u.email+'</td>'+'<td>'+((u&&i.approved?'<span class="badge green">✓ ጸድቅ</span>':'<span class="badge yellow">⏳ ይጸድ</span>'))+'</td>'+'<td>'+(u.streak||0)+'</td>'+'<td>'+(u.best||0)+'</td>'+'<td>'+(u.phase||0)+'</td>'+'<td>'+(u.data_updated?'<span class="badge green">Last: '+u.data_updated.split(' ')[0]+'</span>':'—')+'</td>'+'</tr>';
+    }).join('');
+    loadUserSelect();
+  } catch(e) { document.getElementById('usersTable').innerHTML = '<tr><td colspan="74> '+e.message+'</td></tr>'; }
+}
+
+function loadUserSelect() {
+  var rows = document.querySelectorAll('#usersTable tr td:nth-child(2)');
+  var opts = '<option value="">— ዩዘር ምረጥ —</option>';
+  rows.forEach(function(td) { var e = td.textContent.trim(); if (e && e !== '—') opts += '<option value="'+e+'">'+e+'</option>'; });
+  document.getElementById('msgTarget').innerHTML = opts;
+}
+
+async function sendToUser() {
+  var email = document.getElementById('msgTarget').value;
+  var body = document.getElementById('msgBody').value.trim();
+  var title = document.getElementById('msgTitle').value.trim();
+  if (!email || !body) { loadUserSelect(); return; }
+  try {
+    await api('/admin/message', { method: 'POST', body: JSON.stringify({ to: [email], title: title||null, body: body }) });
+    document.getElementById('msgStatus').textContent = '✓ ተልኳል!';
+  } catch(e) { document.getElementById('msgStatus').textContent = e.message; }
+}
+
+async function sendToAll() {
+  var body = document.getElementById('bcBody').value.trim();
+  if (!body) return;
+  try {
+    await api('/admin/message', { method: 'POST', body: JSON.stringify({ toAll: true, body: body }) });
+    document.getElementById('bcStatus').textContent = '✓ ተልኳል!';
+  } catch(e) { document.getElementById('bcStatus').textContent = e.message; }
+}
+
+initSocket();
+if (token) { if (socket) { socket.connect(); socket.emit('join_admin', token); } }
+</script>
+</body>
+</html>
